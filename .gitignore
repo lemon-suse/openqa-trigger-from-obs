@@ -6,4 +6,4 @@
 /t/**/print_rsync_repo.sh
 /t/**/print_openqa.sh
 /rsync.secret
-/script/__pycache__
+**/__pycache__
