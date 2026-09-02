@@ -219,6 +219,7 @@ class ActionBatch:
         self.offset = "1"
         self.media1 = "1"
         self.sha = "256"
+        self.flavor_sha = {}
         self.realisoflavor = ""
 
     def productpath(self):
@@ -360,9 +361,17 @@ class ActionBatch:
         if self.isos_fixed:
             fixediso = "1"
         s = s.replace("FIXEDISO", fixediso)
-        s = s.replace("SHAEXT", ".sha" + str(self.sha))
-        s = s.replace("SHALEN", "64" if str(self.sha) == "256" else "128")
-        s = s.replace("SHAVALUE", str(self.sha))
+        if self.flavor_sha:
+            # resolve the checksum per flavor at run time, see flavor_sha_lookup
+            s = s.replace("FLAVORSHALOOKUP\n", cfg.flavor_sha_lookup(self.sha))
+            s = s.replace("SHAEXT", "${shaext}")
+            s = s.replace("SHALEN", "${shalen}")
+            s = s.replace("SHAVALUE", "${shavalue}")
+        else:
+            s = s.replace("FLAVORSHALOOKUP\n", "")
+            s = s.replace("SHAEXT", ".sha" + str(self.sha))
+            s = s.replace("SHALEN", "64" if str(self.sha) == "256" else "128")
+            s = s.replace("SHAVALUE", str(self.sha))
         s = s.replace("REALISOFLAVOR", self.realisoflavor)
         print(s, file=f)
 
@@ -441,7 +450,11 @@ class ActionBatch:
         if node.attrib.get("media1", ""):
             self.media1 = node.attrib["media1"]
         if node.attrib.get("sha", ""):
-            self.sha = node.attrib["sha"]
+            if node.attrib.get("name", ""):
+                for f in node.attrib["name"].split("|"):
+                    self.flavor_sha[f] = node.attrib["sha"]
+            else:
+                self.sha = node.attrib["sha"]
 
         for t in node.findall(".//repos"):
             if t.attrib.get("archs", ""):
@@ -893,6 +906,13 @@ class ActionBatch:
             if self.asset_rsync.get(h, 1) == "0":
                 self.p(f"norsync_filter[{h}]='{1}'", f)
 
+    def gen_print_array_flavor_sha(self, f):
+        if not self.flavor_sha:
+            return
+        self.p("declare -A flavor_sha", f)
+        for fl, sha in self.flavor_sha.items():
+            self.p(f"flavor_sha[{fl}]='{sha}'", f)
+
     def gen_print_array_flavor_filter(self, f):
         added_declare_flavor_filter = 0
         if self.hdds or self.assets or self.flavor_aliases:
@@ -970,6 +990,7 @@ done < <(LANG=C.UTF-8 sort __envsub/files_asset.lst)""",
     def gen_print_rsync_iso(self, f):
         print(cfg.header, file=f)
         self.gen_print_array_no_rsync(f)
+        self.gen_print_array_flavor_sha(f)
         if (
             (len(self.hdds) > 1 and (not self.isos)) or (self.isos and self.hdds)
         ) and len(self.flavors) < 2:
@@ -1266,6 +1287,7 @@ done < <(LANG=C.UTF-8 sort __envsub/files_asset.lst)""",
         print(cfg.header, file=f)
         self.p(cfg.pre_openqa_call_start(self.repos), f)
         self.gen_print_array_no_rsync(f)
+        self.gen_print_array_flavor_sha(f)
         self.gen_print_array_flavor_filter(f)
         self.gen_print_array_flavor_distri(f)
         self.gen_print_array_hdd_folder(f)
