@@ -361,17 +361,10 @@ class ActionBatch:
         if self.isos_fixed:
             fixediso = "1"
         s = s.replace("FIXEDISO", fixediso)
-        if self.flavor_sha:
-            # resolve the checksum per flavor at run time, see flavor_sha_lookup
-            s = s.replace("FLAVORSHALOOKUP\n", cfg.flavor_sha_lookup(self.sha))
-            s = s.replace("SHAEXT", "${shaext}")
-            s = s.replace("SHALEN", "${shalen}")
-            s = s.replace("SHAVALUE", "${shavalue}")
-        else:
-            s = s.replace("FLAVORSHALOOKUP\n", "")
-            s = s.replace("SHAEXT", ".sha" + str(self.sha))
-            s = s.replace("SHALEN", "64" if str(self.sha) == "256" else "128")
-            s = s.replace("SHAVALUE", str(self.sha))
+        s = s.replace("FLAVORSHALOOKUP\n", cfg.flavor_sha_lookup(self.sha))
+        s = s.replace("SHAEXT", "${shaext}")
+        s = s.replace("SHALEN", "${shalen}")
+        s = s.replace("SHAVALUE", "${shavalue}")
         s = s.replace("REALISOFLAVOR", self.realisoflavor)
         print(s, file=f)
 
@@ -907,8 +900,6 @@ class ActionBatch:
                 self.p(f"norsync_filter[{h}]='{1}'", f)
 
     def gen_print_array_flavor_sha(self, f):
-        if not self.flavor_sha:
-            return
         self.p("declare -A flavor_sha", f)
         for fl, sha in self.flavor_sha.items():
             self.p(f"flavor_sha[{fl}]='{sha}'", f)

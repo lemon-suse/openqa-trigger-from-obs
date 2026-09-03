@@ -53,22 +53,18 @@ def test_sha_on_a_node_without_name_sets_the_batch_default():
     assert batch.sha == "512"
 
 
-@pytest.mark.parametrize(
-    "sha,expected_ext,expected_len",
-    [
-        pytest.param("256", ".sha256", "64", id="default_sha256"),
-        pytest.param("512", ".sha512", "128", id="batch_wide_sha512"),
-    ],
-)
-def test_p_bakes_the_default_when_no_flavor_overrides_it(
-    sha, expected_ext, expected_len
-):
+def test_p_resolves_at_run_time_when_no_flavor_overrides_it():
     batch = make_batch()
-    batch.sha = sha
+    batch.sha = "256"
     out = io.StringIO()
     batch.p("FLAVORSHALOOKUP\nfile$srcSHAEXT cut -b-SHALEN ASSET_SHAVALUE", out)
-    assert (
-        out.getvalue() == f"file$src{expected_ext} cut -b-{expected_len} ASSET_{sha}\n"
+    assert out.getvalue() == (
+        "        shavalue=256\n"
+        '        [ -z "${flavor_sha[$flavor]}" ] || shavalue=${flavor_sha[$flavor]}\n'
+        '        shaext=".sha$shavalue"\n'
+        "        shalen=128\n"
+        '        [ "$shavalue" != 256 ] || shalen=64\n'
+        "file$src${shaext} cut -b-${shalen} ASSET_${shavalue}\n"
     )
 
 
@@ -87,11 +83,11 @@ def test_p_resolves_at_run_time_when_a_flavor_overrides_the_sha():
     )
 
 
-def test_gen_print_array_flavor_sha_is_silent_without_overrides():
+def test_gen_print_array_flavor_sha_always_declares_the_array():
     batch = make_batch()
     out = io.StringIO()
     batch.gen_print_array_flavor_sha(out)
-    assert out.getvalue() == ""
+    assert out.getvalue() == "declare -A flavor_sha\n"
 
 
 def test_gen_print_array_flavor_sha_declares_the_overrides():
@@ -173,8 +169,15 @@ def test_generated_script_resolves_the_sha_per_flavor(tmp_path, xml, generator):
     ["gen_print_rsync_iso", "gen_print_openqa"],
     ids=["rsync_iso", "openqa"],
 )
-def test_generated_script_is_untouched_without_an_override(tmp_path, generator):
+def test_generated_script_with_no_overrides_uses_per_flavor_resolution(
+    tmp_path, generator
+):
     script = generate(tmp_path, NO_SHA_XML, generator)
-    assert "flavor_sha" not in script
-    assert "shavalue" not in script
-    assert ".sha256" in script
+    assert "declare -A flavor_sha" in script
+    assert (
+        '[ -z "${flavor_sha[$flavor]}" ] || shavalue=${flavor_sha[$flavor]}' in script
+    )
+    assert "shavalue=256" in script
+    # per-flavor resolution uses shell variables, not constants
+    assert ".sha256" not in script
+    assert ".sha512" not in script
