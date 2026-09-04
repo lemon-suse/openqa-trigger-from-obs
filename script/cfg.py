@@ -59,6 +59,16 @@ def rsync_iso_fix_src(archs):
     return ""
 
 
+def flavor_sha_lookup(default_sha):
+    """Return shell code that resolves the checksum value per flavor."""
+    return f"""        shavalue={default_sha}
+        [ -z "${{flavor_sha[$flavor]}}" ] || shavalue=${{flavor_sha[$flavor]}}
+        shaext=".sha$shavalue"
+        shalen=128
+        [ "$shavalue" != 256 ] || shalen=64
+"""
+
+
 def rsync_commands(checksum):
     res = '''echo "rsync --timeout=3600 -tlp4 --specials PRODUCTISOPATH/${iso_folder[$flavor]}*$src /var/lib/openqa/factory/$asset_folder/$dest"'''
     if checksum:
@@ -80,6 +90,7 @@ archs=(ARCHITECTURS)
 for flavor in {FLAVORLIST,}; do
     for arch in "${archs[@]}"; do
         filter=$flavor
+FLAVORSHALOOKUP
         [ -z "${flavor_filter[$flavor]}" ] || filter=${flavor_filter[$flavor]}
         [[ ${norsync_filter[$filter]} != 1 ]] || continue
         src=$(grep "$filter" __envsub/files_iso.lst | grep $arch | head -n 1)
@@ -123,6 +134,7 @@ archs=(ARCHITECTURS)
 
 for flavor in {FLAVORLIST,}; do
     for arch in "${archs[@]}"; do
+FLAVORSHALOOKUP
         while read src; do
             folder=""
             for i in "${!hdd_folder[@]}"; do
@@ -510,6 +522,7 @@ isoflavor=REALISOFLAVOR
 for flavor in {FLAVORALIASLIST,}; do
     for arch in "${archs[@]}"; do
         filter=$flavor
+FLAVORSHALOOKUP
         """
         + openqa_call_start_distri(flavor_distri)
         + """
