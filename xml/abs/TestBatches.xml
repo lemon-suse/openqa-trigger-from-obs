@@ -1,0 +1,17 @@
+<openQA project_pattern="TestBatches(?P&lt;version&gt;[1-9])" dist_path="test" archs="x86_64" media1="0">
+    <batch name="caribe" sha="512">
+        <flavor name="HDD" distri="pemon">
+            <hdd filemask="raw.xz$"/>
+        </flavor>
+        <flavor name="DVD" distri="karina" iso="iso" extract_as_repo="1" sha="256"/>
+    </batch>
+    <batch name="arahuacas" sha="512">
+        <flavor name="HDD" distri="wayuu">
+            <hdd filemask="raw.xz$"/>
+        </flavor>
+        <flavor name="offline-dvd" distri="wanikua" iso="iso" />
+        <flavor name="offline-dvd" distri="bare" iso="1" />
+    </batch>
+    <!-- Flavor for DVD is ignored because is not used inside a batch -->
+    <flavor name="DVD" distri="distri" iso="iso" extract_as_repo="1" sha="512"/>
+</openQA>
