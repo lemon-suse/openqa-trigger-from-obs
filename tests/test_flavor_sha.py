@@ -53,6 +53,43 @@ def test_sha_on_a_node_without_name_sets_the_batch_default():
     assert batch.sha == "512"
 
 
+def test_batch_node_sha_sets_the_batch_default():
+    # doBatch() appends to ag.batches; make_batch() sets iso_path, repo_path,
+    # domain by hand because only doFile() normally sets them
+    ag = ActionGenerator(
+        envdir="/tmp",
+        project="openSUSE:Factory:Staging:J",
+        productpath="",
+        version="Factory",
+        brand="obs",
+    )
+    ag.iso_path = ""
+    ag.repo_path = "repo"
+    ag.domain = ""
+    ag.doBatch(ElementTree.fromstring('<batch name="caribe" sha="512"/>'))
+    batch = ag.batches[0]
+    assert batch.sha == "512"
+    assert batch.flavor_sha == {}
+
+
+def test_root_node_sha_is_not_a_batch_default():
+    # Batch-level sha must be guarded by node.tag == "batch" because doBatch()
+    # is also called with the root openQA node when no explicit batches exist
+    ag = ActionGenerator(
+        envdir="/tmp",
+        project="openSUSE:Factory:Staging:J",
+        productpath="",
+        version="Factory",
+        brand="obs",
+    )
+    ag.iso_path = ""
+    ag.repo_path = "repo"
+    ag.domain = ""
+    ag.doBatch(ElementTree.fromstring('<openQA name="x" sha="512"/>'))
+    batch = ag.batches[0]
+    assert batch.sha == "256"
+
+
 def test_p_resolves_at_run_time_when_no_flavor_overrides_it():
     batch = make_batch()
     batch.sha = "256"
@@ -121,6 +158,13 @@ NO_SHA_XML = """<openQA archs="x86_64" dist_path="images/x86_64">
     </batch>
 </openQA>"""
 
+BATCH_SHA_XML = """<openQA archs="x86_64" dist_path="images/x86_64">
+    <batch name="dvd" folder="*product*" sha="512">
+        <flavor name="DVD" distri="opensuse" iso="1"/>
+        <flavor name="offline-installer" distri="opensuse" iso="1" sha="256"/>
+    </batch>
+</openQA>"""
+
 
 def generate(tmp_path, xml, generator="gen_print_rsync_iso"):
     xmlfile = tmp_path / "project.xml"
@@ -178,6 +222,26 @@ def test_generated_script_with_no_overrides_uses_per_flavor_resolution(
         '[ -z "${flavor_sha[$flavor]}" ] || shavalue=${flavor_sha[$flavor]}' in script
     )
     assert "shavalue=256" in script
+    # per-flavor resolution uses shell variables, not constants
+    assert ".sha256" not in script
+    assert ".sha512" not in script
+
+
+@pytest.mark.parametrize(
+    "generator",
+    ["gen_print_rsync_iso", "gen_print_openqa"],
+    ids=["rsync_iso", "openqa"],
+)
+def test_batch_sha_default_with_flavor_override(tmp_path, generator):
+    # Batch-level sha sets the default; flavor-level sha overrides it
+    script = generate(tmp_path, BATCH_SHA_XML, generator)
+    assert "declare -A flavor_sha" in script
+    assert "shavalue=512" in script
+    assert "flavor_sha[offline-installer]='256'" in script
+    assert "flavor_sha[DVD]" not in script
+    assert (
+        '[ -z "${flavor_sha[$flavor]}" ] || shavalue=${flavor_sha[$flavor]}' in script
+    )
     # per-flavor resolution uses shell variables, not constants
     assert ".sha256" not in script
     assert ".sha512" not in script

@@ -148,6 +148,8 @@ class ActionGenerator:
             batch.repo0folder = node.attrib["repo0folder"]
         if node.attrib.get("variable", ""):
             batch.variable = node.attrib["variable"]
+        if node.tag == "batch" and node.attrib.get("sha", ""):
+            batch.sha = node.attrib["sha"]
         if node.tag != "openQA":
             batch.iso_path = node.attrib.get("iso_path", "")
 
